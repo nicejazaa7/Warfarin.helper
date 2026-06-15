@@ -7,50 +7,39 @@
   }
 
   // --- Settings ---
-  function renderStrengthTags(strengths) {
-    const el = document.getElementById('strength-tags');
+  // Warfarin tablet strengths available in Thailand: 1–5 mg.
+  const AVAILABLE_STRENGTHS = [1, 2, 3, 4, 5];
+
+  function renderPillPicker() {
+    const el = document.getElementById('pill-picker');
+    const selected = getStrengths() || [];
     el.innerHTML = '';
-    (strengths || []).forEach(s => {
-      const tag = document.createElement('span');
-      tag.className = 'tag';
-      tag.textContent = s + ' mg';
-      const rm = document.createElement('button');
-      rm.textContent = '×';
-      rm.setAttribute('aria-label', 'Remove ' + s + ' mg');
-      rm.onclick = () => {
+    AVAILABLE_STRENGTHS.forEach(s => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pill-option' + (selected.includes(s) ? ' selected' : '');
+      btn.setAttribute('aria-pressed', selected.includes(s) ? 'true' : 'false');
+      btn.innerHTML = `<span class="pill-icon">${s}</span><span class="pill-label">${s} mg</span>`;
+      btn.onclick = () => {
         const cur = getStrengths() || [];
-        saveStrengths(cur.filter(x => x !== s));
-        renderStrengthTags(getStrengths());
+        const next = cur.includes(s) ? cur.filter(x => x !== s) : [...cur, s];
+        saveStrengths(next.sort((a, b) => a - b));
+        renderPillPicker();
         updateStrengthSlots();
       };
-      tag.appendChild(rm);
-      el.appendChild(tag);
+      el.appendChild(btn);
     });
   }
 
   function initSettings() {
-    const inp = document.getElementById('strength-input');
-    document.getElementById('add-strength').onclick = () => {
-      const val = parseFloat(inp.value);
-      if (!val || val <= 0) { inp.focus(); return; }
-      const cur = getStrengths() || [];
-      if (!cur.includes(val)) {
-        saveStrengths([...cur, val].sort((a, b) => a - b));
-        renderStrengthTags(getStrengths());
-        updateStrengthSlots();
-      }
-      inp.value = '';
-      inp.focus();
-    };
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('add-strength').click(); });
     document.getElementById('save-settings').onclick = () => {
       if (!getStrengths() || getStrengths().length === 0) {
-        alert('Please add at least one tablet strength.');
+        alert('Please select at least one tablet strength.');
         return;
       }
       showScreen('main-screen');
     };
-    renderStrengthTags(getStrengths());
+    renderPillPicker();
   }
 
   // --- Previous-dose helper ---
@@ -102,7 +91,7 @@
     document.getElementById('dose-method-slots').onchange = () => setDoseMethod('slots');
 
     document.getElementById('btn-settings').onclick = () => {
-      renderStrengthTags(getStrengths());
+      renderPillPicker();
       showScreen('settings-screen');
     };
     document.getElementById('btn-calculator').onclick = () => showScreen('calc-screen');
@@ -215,24 +204,53 @@
 
     html += `<div class="current-dose-info">Current: <strong>${currentWeekly} mg/wk</strong></div>`;
 
-    if (pctRange[0] === 0 && pctRange[1] === 0) {
-      // Restate current
-      html += `<div class="no-change-note">No dose change required. Continue current regimen.</div>`;
+    const isContinue = pctRange[0] === 0 && pctRange[1] === 0;
+    const allowNoChange = !!(row && row.allowNoChange);
+
+    if (isContinue) {
+      // In-range (INR 2.0–3.0): only the no-change option is appropriate.
+      html += `<div class="no-change-note">INR is in range. No dose change required — continue current regimen.</div>`;
     }
 
-    if (suggestions.length === 0) {
+    // Grace zone (INR 1.85–1.99 or 3.01–3.15): "no change" is offered as one
+    // option alongside the adjustment suggestions.
+    if (allowNoChange) {
+      html += `
+        <div class="suggestion-card no-change-option">
+          <div class="option-tag">Option · no change</div>
+          <div class="dose-lines">
+            <div class="dose-line">
+              <div class="dose-line-head"><span class="dose-mg">Continue current dose</span><span class="dose-days">7 days</span></div>
+            </div>
+          </div>
+          <div class="stats">
+            <span class="weekly-mg">${currentWeekly} mg/wk</span>
+            <span class="achieved-pct">±0%</span>
+          </div>
+        </div>
+      `;
+    }
+
+    if (suggestions.length === 0 && !isContinue && !allowNoChange) {
       html += `<div class="no-suggestions">No valid schedule found with available strengths.</div>`;
     } else {
       suggestions.forEach((s, i) => {
         const warnHigh = s.weeklyMg / 7 > 15;
         const warnLargeChange = Math.abs(s.achievedPct) > 35;
+        const linesHtml = s.lines.map(line => {
+          const compose = composeText(line.recipe);
+          return `
+            <div class="dose-line">
+              <div class="dose-line-head"><span class="dose-mg">${line.mg} mg</span><span class="dose-days">${line.days} day${line.days > 1 ? 's' : ''}</span></div>
+              ${compose ? `<div class="dose-compose">${compose}</div>` : ''}
+            </div>`;
+        }).join('');
         html += `
           <div class="suggestion-card ${!s.inGuideline ? 'out-of-guideline' : ''}">
             <div class="suggestion-rank">#${i + 1}</div>
             ${!s.inGuideline ? '<div class="guideline-flag">Outside guideline band</div>' : ''}
             ${warnHigh || warnLargeChange ? `<div class="sanity-warn">⚠ ${warnHigh ? 'Daily dose >15 mg. ' : ''}${warnLargeChange ? 'Large weekly change — check dose.' : ''}</div>` : ''}
-            <div class="daily-plan">${s.dailyPlan}</div>
-            <div class="recipe">${s.perDayRecipe}</div>
+            <div class="dose-lines">${linesHtml}</div>
             <div class="stats">
               <span class="weekly-mg">${s.weeklyMg} mg/wk</span>
               <span class="achieved-pct ${s.achievedPct > 0 ? 'pos' : s.achievedPct < 0 ? 'neg' : ''}">${s.achievedPct >= 0 ? '+' : ''}${s.achievedPct}%</span>

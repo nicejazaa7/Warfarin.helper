@@ -1,4 +1,4 @@
-const CACHE = 'warfarin-v1';
+const CACHE = 'warfarin-v2';
 const SHELL = [
   './',
   './index.html',

@@ -63,6 +63,20 @@ function recipeText(recipe) {
   }).join(' + ');
 }
 
+// Spelled-out tablet composition for one day's dose, e.g.
+// "1 × 2 mg + ½ × 3 mg" for a 3.5 mg day.
+function composeText(recipe) {
+  if (!recipe || recipe.length === 0) return '';
+  return recipe.map(({ strength, halfCount }) => {
+    const whole = Math.floor(halfCount / 2);
+    const half = halfCount % 2;
+    const parts = [];
+    if (whole > 0) parts.push(`${whole} × ${strength} mg`);
+    if (half > 0) parts.push(`½ × ${strength} mg`);
+    return parts.join(' + ');
+  }).join(' + ');
+}
+
 // Format a schedule as human text
 function schedulePlan(v, vp, k, total) {
   // k days at vp, (7-k) days at v
@@ -121,6 +135,7 @@ function suggest(strengths, currentWeekly, pctRange) {
       inWiden: inWidenFlat,
       dailyPlan: schedulePlan(v, v, 0, 7),
       perDayRecipe: recipeText(vRecipe),
+      lines: [{ mg: v, days: 7, recipe: vRecipe }],
       distToMid: Math.abs(flatAchievedPct - midPct),
       distToStrict: inStrictFlat ? 0 : Math.min(Math.abs(flatWeekly - strictLow), Math.abs(flatWeekly - strictHigh)),
     });
@@ -148,6 +163,10 @@ function suggest(strengths, currentWeekly, pctRange) {
           inWiden,
           dailyPlan: schedulePlan(v, vp, k, 7),
           perDayRecipe: `${recipeText(vRecipe) || v + 'mg'} / ${recipeText(vpRecipe) || vp + 'mg'}`,
+          lines: [
+            { mg: v,  days: 7 - k, recipe: vRecipe },
+            { mg: vp, days: k,     recipe: vpRecipe },
+          ],
           distToMid: Math.abs(achievedPct - midPct),
           distToStrict: inStrict ? 0 : Math.min(Math.abs(weekly - strictLow), Math.abs(weekly - strictHigh)),
           kHigh: k,
@@ -158,9 +177,20 @@ function suggest(strengths, currentWeekly, pctRange) {
     }
   }
 
+  // Step 3b: enforce direction. An "increase" must raise the weekly dose, a
+  // "decrease" must lower it, and a "continue" ([0,0]) must keep it identical.
+  // This guarantees a same-dose (0% change) schedule is never offered for a
+  // genuine adjustment — the no-change option is added separately in the UI.
+  const dir = plo > 0 ? 1 : phi < 0 ? -1 : 0;
+  const directional = candidates.filter(c => {
+    if (dir > 0) return c.weekly > currentWeekly + 1e-9;
+    if (dir < 0) return c.weekly < currentWeekly - 1e-9;
+    return Math.abs(c.weekly - currentWeekly) < 1e-9;
+  });
+
   // Step 4: rank and pick top 3
-  const strictCands = candidates.filter(c => c.inStrict);
-  const widenCands  = candidates.filter(c => c.inWiden && !c.inStrict);
+  const strictCands = directional.filter(c => c.inStrict);
+  const widenCands  = directional.filter(c => c.inWiden && !c.inStrict);
   const bestStrictSpread = strictCands.length > 0
     ? Math.min(...strictCands.map(c => c.spread))
     : Infinity;
@@ -172,8 +202,8 @@ function suggest(strengths, currentWeekly, pctRange) {
   } else if (widenCands.length > 0) {
     eligible = widenCands.map(c => ({ ...c, outOfGuideline: true }));
   } else {
-    // Fallback: closest to band overall
-    eligible = candidates
+    // Fallback: closest to band overall (still direction-constrained)
+    eligible = directional
       .filter(c => c.weekly > 0)
       .sort((a, b) => a.distToStrict - b.distToStrict)
       .slice(0, 10)
@@ -203,6 +233,7 @@ function suggest(strengths, currentWeekly, pctRange) {
   return deduped.map(c => ({
     dailyPlan: c.dailyPlan,
     perDayRecipe: c.perDayRecipe,
+    lines: c.lines,
     weeklyMg: c.weekly,
     achievedPct: c.achievedPct,
     inGuideline: !c.outOfGuideline,
