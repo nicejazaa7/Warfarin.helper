@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1a56db">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Warfarin Dose</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ===== SETTINGS SCREEN ===== -->
+<div id="settings-screen" class="screen">
+  <div class="app-header">
+    <div>
+      <h1>Warfarin Dose</h1>
+      <div class="subtitle">Settings</div>
+    </div>
+  </div>
+  <div class="screen-body">
+    <div class="card">
+      <div class="card-title">Tablet Strengths Available</div>
+      <div class="tag-area" id="strength-tags"></div>
+      <div class="input-row">
+        <input type="number" id="strength-input" placeholder="e.g. 1" min="0.5" step="0.5">
+        <button class="btn btn-secondary btn-sm" id="add-strength">Add mg</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Enter each available tablet strength in mg (e.g. 1, 3, 5).</div>
+    </div>
+    <button class="btn btn-primary" id="save-settings">Save &amp; Continue</button>
+  </div>
+</div>
+
+<!-- ===== MAIN SCREEN ===== -->
+<div id="main-screen" class="screen">
+  <div class="app-header">
+    <div>
+      <h1>Warfarin Dose</h1>
+      <div class="subtitle">Target INR 2.0–3.0</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-icon" id="btn-calculator" title="Calculator">🧮</button>
+      <button class="btn-icon" id="btn-settings" title="Settings">⚙️</button>
+    </div>
+  </div>
+  <div class="screen-body">
+
+    <div class="inr-target">Target INR range: <strong>2.0 – 3.0</strong></div>
+
+    <!-- Mode toggle -->
+    <div class="toggle-row">
+      <button id="btn-table" class="active">Table (INR)</button>
+      <button id="btn-demand">Demand (%)</button>
+    </div>
+
+    <!-- Table mode inputs -->
+    <div id="table-inputs" class="card">
+      <label for="inr-input">Current INR</label>
+      <input type="number" id="inr-input" placeholder="e.g. 1.4" min="0.1" step="0.1">
+      <div class="mt-12" style="display:flex;align-items:center;gap:10px;">
+        <input type="checkbox" id="major-bleeding" style="width:20px;height:20px;">
+        <label for="major-bleeding" style="margin:0;font-size:14px;color:var(--danger);font-weight:600;">Major bleeding (any INR)</label>
+      </div>
+    </div>
+
+    <!-- Demand mode inputs -->
+    <div id="demand-inputs" class="card hidden">
+      <label for="demand-pct">Adjustment (%)</label>
+      <input type="number" id="demand-pct" placeholder="e.g. +12 or -8" step="1">
+      <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Enter a signed number, e.g. 12 to increase 12%, -8 to decrease 8%.</div>
+    </div>
+
+    <!-- Previous dose -->
+    <div class="card">
+      <div class="card-title">Current Weekly Dose</div>
+      <div class="radio-row">
+        <label><input type="radio" name="dose-method" id="dose-method-direct" value="direct" checked> Enter directly</label>
+        <label><input type="radio" name="dose-method" id="dose-method-slots" value="slots"> By tablet</label>
+      </div>
+
+      <div id="weekly-direct">
+        <label for="weekly-mg">Weekly dose (mg/wk)</label>
+        <input type="number" id="weekly-mg" placeholder="e.g. 21" min="0" step="0.5">
+      </div>
+
+      <div id="weekly-slots" class="hidden">
+        <div id="dose-slots"></div>
+        <div class="slot-total">Total: <span id="slot-total">0 mg/wk</span></div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-calculate">Calculate Dose</button>
+  </div>
+</div>
+
+<!-- ===== RESULTS SCREEN ===== -->
+<div id="results-screen" class="screen">
+  <div class="app-header">
+    <div>
+      <h1>Dose Suggestion</h1>
+      <div class="subtitle">Target INR 2.0–3.0</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-icon" id="btn-back" title="Back">←</button>
+    </div>
+  </div>
+  <div class="screen-body">
+    <div id="results-content"></div>
+  </div>
+</div>
+
+<!-- ===== CALCULATOR SCREEN ===== -->
+<div id="calc-screen" class="screen">
+  <div class="app-header">
+    <div>
+      <h1>Calculator</h1>
+    </div>
+    <div class="header-actions">
+      <button class="btn-icon" id="btn-back-calc" title="Back">←</button>
+    </div>
+  </div>
+  <div class="screen-body">
+    <div class="calc-display" id="calc-display">0</div>
+    <div class="calc-grid">
+      <button class="calc-btn clr" onclick="calcInput('C')">C</button>
+      <button class="calc-btn op" onclick="calcInput('⌫')">⌫</button>
+      <button class="calc-btn op" onclick="calcInput('%')">%</button>
+      <button class="calc-btn op" onclick="calcInput('÷')">÷</button>
+
+      <button class="calc-btn" onclick="calcInput('7')">7</button>
+      <button class="calc-btn" onclick="calcInput('8')">8</button>
+      <button class="calc-btn" onclick="calcInput('9')">9</button>
+      <button class="calc-btn op" onclick="calcInput('×')">×</button>
+
+      <button class="calc-btn" onclick="calcInput('4')">4</button>
+      <button class="calc-btn" onclick="calcInput('5')">5</button>
+      <button class="calc-btn" onclick="calcInput('6')">6</button>
+      <button class="calc-btn op" onclick="calcInput('-')">−</button>
+
+      <button class="calc-btn" onclick="calcInput('1')">1</button>
+      <button class="calc-btn" onclick="calcInput('2')">2</button>
+      <button class="calc-btn" onclick="calcInput('3')">3</button>
+      <button class="calc-btn op" onclick="calcInput('+')">+</button>
+
+      <button class="calc-btn zero" onclick="calcInput('0')">0</button>
+      <button class="calc-btn" onclick="calcInput('.')">.</button>
+      <button class="calc-btn eq" onclick="calcInput('=')">=</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/store.js"></script>
+<script src="js/titration.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/calculator.js"></script>
+<script src="js/ui.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>

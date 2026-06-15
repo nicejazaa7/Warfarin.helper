@@ -1,0 +1,13 @@
+{
+  "name": "Warfarin Dose",
+  "short_name": "Warfarin",
+  "description": "Warfarin dose adjustment decision-support tool (target INR 2.0–3.0)",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#1a56db",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
